@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Build & Release Output (Installer, Portable exe, unpacked binaries)
+dist/
+dist/
+build/temp/
+out/
+*.exe
+*.blockmap
+*.yml
+!package.json
+
+# Environment & Cache
+.env
+.env.*
+.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS & System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# IDE & Editor Directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

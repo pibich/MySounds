@@ -1,0 +1,62 @@
+{
+  "name": "mysounds",
+  "productName": "MySounds",
+  "version": "1.0.0",
+  "description": "Soundboard & media player BGM offline dengan global hotkey untuk streaming/OBS",
+  "main": "src/main/main.js",
+  "author": {
+    "name": "PIBI"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "assets": "node build/make-assets.js",
+    "smoke": "electron . --smoke",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.pibi.mysounds",
+    "productName": "MySounds",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "MySounds"
+    },
+    "portable": {
+      "artifactName": "MySounds-${version}-portable.exe"
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

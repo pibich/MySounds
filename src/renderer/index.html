@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data:; connect-src 'self' media: file:; media-src 'self' media: file:; font-src 'self' file:; object-src 'none'; base-uri 'none'" />
+  <title>MySounds</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">MySounds</div>
+      </div>
+    </div>
+    <div class="win-controls">
+      <button class="win-btn" id="winMin" type="button" title="Minimize"></button>
+      <button class="win-btn" id="winMax" type="button" title="Maximize"></button>
+      <button class="win-btn close" id="winClose" type="button" title="Tutup (ke system tray)"></button>
+    </div>
+  </header>
+
+  <main class="content" data-tabgroup>
+    <div class="tabs-row">
+      <div class="tabs main-tabs">
+        <button class="tab active" data-tab="tabBoard" type="button">Soundboard</button>
+        <button class="tab" data-tab="tabBgm" type="button">BGM Player</button>
+      </div>
+
+      <div class="search-box" id="searchBox">
+        <svg class="ic search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="soundSearch" placeholder="Cari sound atau hotkey..." autocomplete="off" spellcheck="false" />
+        <button class="search-clear" id="searchClear" type="button" title="Bersihkan pencarian" hidden>&times;</button>
+      </div>
+
+      <div class="tabs-actions">
+        <button class="btn small primary" id="btnAdd" type="button">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Tambah
+        </button>
+        <button class="btn small ghost" id="btnStopAll" type="button" title="Hentikan semua suara">
+          <svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" fill="currentColor"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Stop
+          <kbd id="stopAllKbd" hidden></kbd>
+        </button>
+        <button class="btn small ghost icon-only" id="btnLock" type="button" title="Kunci posisi kartu"></button>
+        <button class="btn small ghost icon-only" id="btnGuide" type="button" title="Panduan OBS">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9.1 9a3 3 0 1 1 4.5 2.6c-.9.5-1.6 1.2-1.6 2.4"/><circle cx="12" cy="17.6" r="0.8" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button class="btn small ghost icon-only" id="btnSettings" type="button" title="Pengaturan">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58-2-3.46-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.8 3h-4l-.36 2.04a7.03 7.03 0 0 0-1.63.94l-2.39-.96-2 3.46 2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58 2 3.46 2.39-.96c.49.4 1.04.72 1.63.94L10.8 21h4l.36-2.04a7.03 7.03 0 0 0 1.63-.94l2.39.96 2-3.46-2.03-1.58ZM12.8 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tabBoard">
+      <div id="grid" class="grid" style="--cols: 4"></div>
+
+      <div id="emptyState" class="empty" hidden>
+        <div class="empty-box">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+          </div>
+          <h2>Belum ada sound</h2>
+          <p>Tambahkan file audio (WAV/MP3/OGG/FLAC), lalu set hotkeynya — misalnya <kbd>Num 1</kbd> untuk slot "Hiyaa".</p>
+          <button class="btn primary" id="btnAddEmpty" type="button">Tambah Sound Pertama</button>
+          <p class="hint">Supaya terdengar di OBS, buka <button class="linklike" id="btnGuideEmpty" type="button">Panduan OBS</button></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tabBgm" hidden>
+      <div id="bgmEmpty" class="empty">
+        <div class="empty-box">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6zM3 6h6v2H3V6zm0 4h6v2H3v-2z"/></svg>
+          </div>
+          <h2>Belum ada lagu BGM</h2>
+          <p>Pilih satu lagu sebagai background music. BGM bisa diarahkan ke device lain supaya tidak terdengar di speaker kamu, tapi tetap masuk OBS.</p>
+          <button class="btn primary" id="btnBgmPick" type="button">Pilih Lagu BGM</button>
+          <p class="hint"><button class="linklike" id="btnBgmGuide" type="button">Panduan OBS</button></p>
+        </div>
+      </div>
+
+      <div id="bgmPlayer" class="bgm-player" hidden>
+        <div class="bgm-card">
+          <div class="bgm-head">
+            <div class="bgm-vinyl" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
+            </div>
+            <div class="bgm-info">
+              <div class="bgm-title" id="bgmTitle">—</div>
+              <div class="bgm-meta" id="bgmMeta"></div>
+            </div>
+            <div class="bgm-head-actions">
+              <button class="btn ghost small" id="btnBgmPick2" type="button">Ganti Lagu</button>
+              <button class="btn ghost small danger-text" id="btnBgmRemove" type="button">Hapus</button>
+            </div>
+          </div>
+
+          <div class="bgm-transport">
+            <button class="btn primary big" id="bgmPlay" type="button"></button>
+            <button class="btn ghost" id="bgmStop" type="button">Stop</button>
+            <button class="btn ghost" id="bgmLoop" type="button">Loop</button>
+            <span class="chip" id="bgmStatusChip">siap</span>
+          </div>
+
+          <div class="bgm-seek">
+            <span class="time mono" id="bgmCur">0:00</span>
+            <input type="range" id="bgmSeek" min="0" max="1000" step="1" value="0" style="--pct:0%" aria-label="Posisi BGM" />
+            <span class="time mono" id="bgmDur">0:00</span>
+          </div>
+
+          <label class="field bgm-volume-field">
+            <span>Volume BGM</span>
+            <input type="range" id="bgmVolume" min="0" max="1" step="0.01" value="1" style="--pct:100%" aria-label="Volume BGM" />
+          </label>
+
+          <div class="bgm-device-panel">
+            <div class="device-panel-header">
+              <h3 class="section-h">Device output BGM</h3>
+              <button class="btn small" id="btnBgmTest" type="button">Tes Device</button>
+            </div>
+            <label class="field">
+              <select id="bgmDevice" aria-label="Device output BGM"></select>
+            </label>
+            <p class="hint">Pilih device yang <b>tidak kamu dengar</b> (mis. CABLE Input / monitor HDMI). <button class="linklike" id="btnBgmGuide2" type="button">Panduan OBS</button></p>
+            <div class="bgm-warn" id="bgmWarn" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <div class="status-left">
+      <span id="statusTagline">Soundboard &amp; BGM untuk Streaming</span>
+      <span class="sep">•</span>
+      <span id="statusDevice">Output: Device default</span>
+      <span class="chip" id="hotkeyChip">0 hotkey aktif</span>
+      <span id="statusPath" hidden></span>
+    </div>
+    <div class="status-right">
+      <div class="meter" title="Level output audio">
+        <div class="meter-fill" id="meterFill"></div>
+      </div>
+      <span id="statusVersion">v1.0.0</span>
+    </div>
+  </footer>
+
+  <!-- Modal: atur hotkey -->
+  <div class="modal-backdrop" id="modalCapture" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2>Atur Hotkey</h2>
+      <p class="modal-sub" id="captureTarget">untuk slot</p>
+      <div class="capture-box">
+        <span class="capture-preview" id="capturePreview">Tekan kombinasi tombol sekarang…</span>
+      </div>
+      <p class="hint" id="captureHint">Tips: gunakan <b>Num 1</b>, <b>Num 2</b>, … di numpad supaya tidak mengganggu mengetik.</p>
+      <p class="error" id="captureError" hidden></p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="captureClear" type="button">Hapus Hotkey</button>
+        <span class="spacer"></span>
+        <button class="btn ghost" id="captureCancel" type="button">Batal (Esc)</button>
+        <button class="btn primary" id="captureSave" type="button" disabled>Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: pengaturan -->
+  <div class="modal-backdrop" id="modalSettings" hidden>
+    <div class="modal wide" role="dialog" aria-modal="true">
+      <h2>Pengaturan</h2>
+      <div class="settings-cols">
+        <section>
+          <h3>Output audio</h3>
+          <label class="field">
+            <span>Device output</span>
+            <select id="setDevice"></select>
+          </label>
+          <p class="hint" id="deviceHint">Pakai device default untuk mendengar suara langsung di speaker/headset kamu.</p>
+          <div class="row">
+            <button class="btn" id="btnTestTone" type="button">Test Suara</button>
+          </div>
+
+          <h3>Hotkey Stop Semua</h3>
+          <div class="row">
+            <kbd class="badge" id="stopAllKbd2">belum diatur</kbd>
+            <button class="btn" id="btnSetStopAll" type="button">Atur</button>
+            <button class="btn ghost" id="btnClearStopAll" type="button">Hapus</button>
+          </div>
+          <p class="hint">Belum diatur? Klik tombol <b>Stop</b> di baris tab untuk input langsung.</p>
+
+          <h3>Hotkey BGM (putar/jeda)</h3>
+          <div class="row">
+            <kbd class="badge" id="bgmHotkeyKbd">belum diatur</kbd>
+            <button class="btn" id="btnSetBgmHotkey" type="button">Atur</button>
+            <button class="btn ghost" id="btnClearBgmHotkey" type="button">Hapus</button>
+          </div>
+          <p class="hint">Putar/jeda BGM dari aplikasi mana pun — default <b>Ctrl+F9</b>.</p>
+        </section>
+
+        <section>
+          <h3>Perilaku slot</h3>
+          <label class="check">
+            <input type="checkbox" id="setRetrigger" />
+            <span>Putar ulang dari awal saat hotkey ditekan lagi (retrigger)</span>
+          </label>
+          <label class="field">
+            <span>Jumlah kolom grid: <b id="colsVal">4</b></span>
+            <input type="range" id="setCols" min="2" max="8" step="1" />
+          </label>
+
+          <h3>Data</h3>
+          <div class="row">
+            <button class="btn" id="btnOpenData" type="button">Buka folder data</button>
+          </div>
+          <p class="hint" id="dataPath"></p>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn primary" type="button" data-close>Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: panduan OBS -->
+  <div class="modal-backdrop" id="modalGuide" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2>Panduan OBS</h2>
+      <ol class="steps">
+        <li>Buka OBS → panel <b>Sources</b> → <b>+</b> → <b>Application Audio Capture</b> (OBS 28+).</li>
+        <li>Pada daftar aplikasi, pilih <b>MySounds.exe</b>.</li>
+        <li>Klik <b>Test Suara</b> — bar di <b>Audio Mixer</b> OBS harus bergerak. Selesai.</li>
+      </ol>
+      <div class="row">
+        <button class="btn primary" id="btnGuideTest1" type="button">Test Suara</button>
+      </div>
+      <p class="hint">Matikan <b>Desktop Audio</b> di OBS supaya musik pribadi (Spotify) tidak ikut masuk. Soundboard dan BGM otomatis tertangkap lewat satu sumber itu. Untuk OBS versi lama: pasang <b>VB-CABLE</b>, arahkan BGM ke CABLE Input, lalu pakai sumber <b>Audio Output Capture</b> (CABLE Output).</p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn primary" type="button" data-close>Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: edit slot -->
+  <div class="modal-backdrop" id="modalEdit" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2>Edit Slot</h2>
+      <label class="field">
+        <span>Nama</span>
+        <input type="text" id="editLabel" maxlength="80" autocomplete="off" />
+      </label>
+      <label class="check">
+        <input type="checkbox" id="editLoop" />
+        <span>Loop — diulang terus sampai di-stop dengan hotkey yang sama</span>
+      </label>
+      <div class="fileinfo">
+        <span id="editFile" class="mono"></span>
+        <div class="row">
+          <button class="btn ghost" id="btnReplaceFile" type="button">Ganti file</button>
+          <button class="btn ghost" id="btnShowFile" type="button">Buka lokasi file</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn ghost" type="button" data-close>Batal</button>
+        <button class="btn primary" id="editSave" type="button">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: konfirmasi -->
+  <div class="modal-backdrop" id="modalConfirm" hidden>
+    <div class="modal small" role="dialog" aria-modal="true">
+      <h2 id="confirmTitle">Konfirmasi</h2>
+      <p id="confirmMessage"></p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn ghost" type="button" data-close>Batal</button>
+        <button class="btn danger" id="confirmOk" type="button">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <audio id="bgmAudio" hidden preload="metadata"></audio>
+
+  <script src="hotkey-map.js"></script>
+  <script src="audio.js"></script>
+  <script src="bgm.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
