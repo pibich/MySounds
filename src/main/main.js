@@ -11,6 +11,58 @@ const { registerMediaScheme, registerMediaProtocol } = require('./media-protocol
 
 const SMOKE = process.argv.includes('--smoke');
 const APP_ICON = path.join(__dirname, '..', 'assets', 'app.png');
+const BADGE_GREEN_ICO = path.join(__dirname, '..', 'assets', 'badge-green.ico');
+const BADGE_YELLOW_ICO = path.join(__dirname, '..', 'assets', 'badge-yellow.ico');
+const BADGE_GREEN_PNG = path.join(__dirname, '..', 'assets', 'badge-green.png');
+const BADGE_YELLOW_PNG = path.join(__dirname, '..', 'assets', 'badge-yellow.png');
+
+let overlayGreen = null;
+let overlayYellow = null;
+let currentOverlayState = { status: 'idle', description: '' };
+
+function loadOverlayIcons() {
+  try {
+    if (fs.existsSync(BADGE_GREEN_ICO)) {
+      overlayGreen = nativeImage.createFromPath(BADGE_GREEN_ICO);
+    } else if (fs.existsSync(BADGE_GREEN_PNG)) {
+      overlayGreen = nativeImage.createFromPath(BADGE_GREEN_PNG);
+    }
+    if (fs.existsSync(BADGE_YELLOW_ICO)) {
+      overlayYellow = nativeImage.createFromPath(BADGE_YELLOW_ICO);
+    } else if (fs.existsSync(BADGE_YELLOW_PNG)) {
+      overlayYellow = nativeImage.createFromPath(BADGE_YELLOW_PNG);
+    }
+  } catch (err) {
+    console.error('Gagal memuat ikon overlay:', err.message);
+  }
+}
+
+function setTaskbarOverlay(status, description) {
+  currentOverlayState = { status: status || 'idle', description: description || '' };
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, reason: 'no-window' };
+  if (process.platform !== 'win32') return { ok: true, skipped: 'non-win32' };
+
+  try {
+    if (status === 'playing') {
+      const desc = description || 'BGM Berjalan';
+      if (!overlayGreen || overlayGreen.isEmpty()) loadOverlayIcons();
+      mainWindow.setOverlayIcon(overlayGreen, desc);
+      if (tray && !tray.isDestroyed()) tray.setToolTip(`MySounds - ${desc}`);
+    } else if (status === 'error') {
+      const desc = description || 'BGM Error / Lagu Tidak Terdeteksi';
+      if (!overlayYellow || overlayYellow.isEmpty()) loadOverlayIcons();
+      mainWindow.setOverlayIcon(overlayYellow, desc);
+      if (tray && !tray.isDestroyed()) tray.setToolTip(`MySounds - ${desc}`);
+    } else {
+      mainWindow.setOverlayIcon(null, '');
+      if (tray && !tray.isDestroyed()) tray.setToolTip('MySounds');
+    }
+    return { ok: true, status: currentOverlayState.status };
+  } catch (err) {
+    console.error('Gagal setOverlayIcon:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -72,7 +124,17 @@ function createWindow() {
     });
   }
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    if (currentOverlayState.status !== 'idle') {
+      setTaskbarOverlay(currentOverlayState.status, currentOverlayState.description);
+    }
+  });
+  mainWindow.on('show', () => {
+    if (currentOverlayState.status !== 'idle') {
+      setTaskbarOverlay(currentOverlayState.status, currentOverlayState.description);
+    }
+  });
 
   const forwardMaxState = () => sendToRenderer('win:max-state', mainWindow.isMaximized());
   mainWindow.on('maximize', forwardMaxState);
@@ -103,7 +165,12 @@ function createTray() {
   try {
     const image = nativeImage.createFromPath(APP_ICON);
     tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 }));
-    tray.setToolTip('MySounds');
+    const tip = currentOverlayState.status === 'playing'
+      ? 'MySounds - BGM Berjalan'
+      : currentOverlayState.status === 'error'
+      ? `MySounds - ${currentOverlayState.description || 'BGM Error'}`
+      : 'MySounds';
+    tray.setToolTip(tip);
     tray.setContextMenu(
       Menu.buildFromTemplate([
         {
@@ -181,6 +248,14 @@ function registerIpc() {
     };
   });
 
+  ipcMain.handle('bgm:set-overlay', (_event, payload) => {
+    const status = typeof payload === 'string' ? payload : (payload && payload.status);
+    const description = payload && payload.description;
+    return setTaskbarOverlay(status, description);
+  });
+
+  ipcMain.handle('bgm:get-overlay', () => ({ ...currentOverlayState }));
+
   ipcMain.handle('hotkeys:sync', (event, entries) => hotkeys.sync(entries));
   ipcMain.handle('hotkeys:suspend', (event, value) => hotkeys.setSuspended(value));
 
@@ -247,7 +322,15 @@ app.whenReady().then(() => {
         const metaOk = !!(probe.meta && probe.meta.includes('WAV'));
         const slotHotkeyOk = !!(probe.hotkeys && probe.hotkeys['slot:aaaaaaaa-bbbb-4fff-8eee-999999999991'] && probe.hotkeys['slot:aaaaaaaa-bbbb-4fff-8eee-999999999991'].ok);
         const bgmOk = !!(probe.bgm && probe.bgm.hasTab && probe.bgm.file && probe.bgm.sink.ok && probe.bgm.play.ok && probe.bgm.playing);
-        failed = !(probe.ready && probe.slots === 6 && metaOk && slotHotkeyOk && probe.play && probe.play.ok && results['smoke:combo'].ok && bgmOk);
+        const overlayOk = !!(
+          probe.bgm &&
+          probe.bgm.overlay &&
+          probe.bgm.overlay.play && probe.bgm.overlay.play.status === 'playing' &&
+          probe.bgm.overlay.pause && probe.bgm.overlay.pause.status === 'idle' &&
+          probe.bgm.overlay.error && probe.bgm.overlay.error.status === 'error' &&
+          probe.bgm.overlay.clear && probe.bgm.overlay.clear.status === 'idle'
+        );
+        failed = !(probe.ready && probe.slots === 6 && metaOk && slotHotkeyOk && probe.play && probe.play.ok && results['smoke:combo'].ok && bgmOk && overlayOk);
 
         const shot = path.join(os.tmpdir(), 'mysounds-smoke.png');
         const image = await mainWindow.webContents.capturePage();
@@ -352,9 +435,19 @@ const PROBE_SCRIPT = [
   '  const sinkRes = await BgmPlayer.setSink(state.config.settings.bgmDeviceId);',
   '  BgmPlayer.load(state.config.bgm);',
   '  const bgmPlay = await BgmPlayer.play();',
+  '  updateBgmStatus();',
   '  await new Promise((resolve) => setTimeout(resolve, 300));',
   '  const bgmState = BgmPlayer.state();',
+  '  const overlayPlay = await window.api.getBgmOverlay();',
   '  BgmPlayer.pause();',
+  '  updateBgmStatus();',
+  '  const overlayPause = await window.api.getBgmOverlay();',
+  '  state.bgmError = "Lagu tidak terdeteksi";',
+  '  updateBgmStatus();',
+  '  const overlayErr = await window.api.getBgmOverlay();',
+  '  state.bgmError = null;',
+  '  updateBgmStatus();',
+  '  const overlayClear = await window.api.getBgmOverlay();',
   '  return {',
   '    ready: !!window.__sbReady,',
   '    slots: state.config.slots.length,',
@@ -378,7 +471,8 @@ const PROBE_SCRIPT = [
   '      play: bgmPlay,',
   '      playing: bgmState.playing,',
   '      duration: bgmState.duration,',
-  '      hotkey: state.results["bgm:toggle"] || null',
+  '      hotkey: state.results["bgm:toggle"] || null,',
+  '      overlay: { play: overlayPlay, pause: overlayPause, error: overlayErr, clear: overlayClear }',
   '    }',
   '  };',
   '})()'

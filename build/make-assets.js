@@ -191,6 +191,66 @@ function renderIcon(size) {
   return pixels;
 }
 
+function renderBadge(size, colorType) {
+  const pixels = Buffer.alloc(size * size * 4);
+  const samples = 4;
+  const step = 1 / samples;
+  const cx0 = size / 2;
+  const cy0 = size / 2;
+  const outerRadius = size * 0.44;
+  const innerRadius = size * 0.35;
+
+  const palettes = {
+    green: {
+      from: [74, 222, 128],
+      to: [22, 163, 74],
+      border: [11, 18, 26]
+    },
+    yellow: {
+      from: [253, 224, 71],
+      to: [217, 119, 6],
+      border: [11, 18, 26]
+    }
+  };
+  const theme = palettes[colorType];
+
+  for (let py = 0; py < size; py += 1) {
+    for (let px = 0; px < size; px += 1) {
+      let outerA = 0;
+      let innerA = 0;
+
+      for (let sy = 0; sy < samples; sy += 1) {
+        for (let sx = 0; sx < samples; sx += 1) {
+          const x = px + (sx + 0.5) * step;
+          const y = py + (sy + 0.5) * step;
+          const dist = Math.hypot(x - cx0, y - cy0);
+
+          const covOut = coverage(dist - outerRadius);
+          if (covOut > 0) outerA += covOut;
+
+          const covIn = coverage(dist - innerRadius);
+          if (covIn > 0) innerA += covIn;
+        }
+      }
+
+      const total = samples * samples;
+      const aOut = outerA / total;
+      const aIn = innerA / total;
+      const base = (py * size + px) * 4;
+
+      if (aOut > 0) {
+        blend(pixels, base, theme.border[0], theme.border[1], theme.border[2], aOut);
+      }
+      if (aIn > 0) {
+        const t = clamp01(py / size);
+        const col = lerpColor(theme.from, theme.to, t);
+        blend(pixels, base, col[0], col[1], col[2], aIn);
+      }
+    }
+  }
+  return pixels;
+}
+
 function pngToIco(pngList) {
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0);
@@ -229,6 +289,17 @@ function main() {
 
   const appPng = pngList.find((entry) => entry.size === 256).data;
   fs.writeFileSync(path.join(assetsDir, 'app.png'), appPng);
+
+  const badgeSizes = [16, 24, 32];
+  for (const color of ['green', 'yellow']) {
+    const badgePngs = badgeSizes.map((size) => ({ size, data: encodePng(size, renderBadge(size, color)) }));
+    const icoPath = path.join(assetsDir, `badge-${color}.ico`);
+    fs.writeFileSync(icoPath, pngToIco(badgePngs));
+    const pngPath = path.join(assetsDir, `badge-${color}.png`);
+    fs.writeFileSync(pngPath, badgePngs.find((e) => e.size === 32).data);
+    console.log(`OK ${icoPath}`);
+    console.log(`OK ${pngPath}`);
+  }
 
   console.log(`OK ${iconPath}`);
   console.log(`OK ${path.join(assetsDir, 'app.png')}`);

@@ -45,6 +45,7 @@ const BgmPlayer = (function () {
   async function play() {
     const media = ensure();
     if (!media || !media.getAttribute('src')) return { ok: false, reason: 'empty' };
+    if (media.error) return { ok: false, reason: 'failed', message: 'File audio tidak dapat dimuat atau rusak.' };
     try {
       await media.play();
       return { ok: true };

@@ -22,7 +22,8 @@ const state = {
   capture: null,
   editId: null,
   confirmResolver: null,
-  saveTimer: null
+  saveTimer: null,
+  bgmError: null
 };
 
 const els = {};
@@ -362,13 +363,7 @@ function handleTrigger(payload) {
     return;
   }
   if (payload.key === 'bgm:toggle') {
-    BgmPlayer.toggle().then((result) => {
-      if (!result.ok) {
-        if (result.reason === 'empty') toast('Belum ada lagu BGM.', 'warn');
-        else if (result.message) toast(result.message, 'error');
-      }
-      updateBgmStatus();
-    });
+    handleBgmToggle();
     return;
   }
   if (payload.key.startsWith('slot:')) {
@@ -610,46 +605,109 @@ function testTone() {
 let bgmSeekDragging = false;
 
 function renderBgm() {
-  const bgm = state.config.bgm;
-  const hasTrack = !!bgm.file;
+  const bgm = state.config && state.config.bgm;
+  const hasTrack = !!(bgm && bgm.file);
   els.bgmEmpty.hidden = hasTrack;
   els.bgmPlayer.hidden = !hasTrack;
-  if (!hasTrack) return;
-  els.bgmTitle.textContent = bgm.sourceName || bgm.file;
-  els.bgmTitle.title = bgm.file;
-  els.bgmMeta.textContent = bgm.file;
-  els.bgmVolume.value = String(bgm.volume);
-  els.bgmVolume.style.setProperty('--pct', `${Math.round(bgm.volume * 100)}%`);
-  els.bgmLoop.classList.toggle('toggled', !!bgm.loop);
-  BgmPlayer.setVolume(bgm.volume);
-  BgmPlayer.setLoop(bgm.loop);
+  if (hasTrack) {
+    els.bgmTitle.textContent = bgm.sourceName || bgm.file;
+    els.bgmTitle.title = bgm.file;
+    els.bgmMeta.textContent = bgm.file;
+    els.bgmVolume.value = String(bgm.volume);
+    els.bgmVolume.style.setProperty('--pct', `${Math.round(bgm.volume * 100)}%`);
+    els.bgmLoop.classList.toggle('toggled', !!bgm.loop);
+    BgmPlayer.setVolume(bgm.volume);
+    BgmPlayer.setLoop(bgm.loop);
+  }
   updateBgmStatus();
   updateBgmWarn();
 }
 
 function updateBgmStatus() {
-  const bgm = state.config.bgm;
-  if (!bgm.file || els.bgmPlayer.hidden) return;
+  const bgm = state.config && state.config.bgm;
+  const hasTrack = !!(bgm && bgm.file);
   const media = BgmPlayer.element();
   const st = BgmPlayer.state();
   const playing = st.playing;
-  els.bgmPlay.innerHTML = playing ? `${ICONS.stop}Jeda` : `${ICONS.play}Putar`;
-  if (media && media.error) {
-    els.bgmStatusChip.textContent = 'gagal memuat';
-    els.bgmStatusChip.className = 'chip warn';
+
+  if (hasTrack && els.bgmPlayer && !els.bgmPlayer.hidden) {
+    els.bgmPlay.innerHTML = playing ? `${ICONS.stop}Jeda` : `${ICONS.play}Putar`;
+    if (state.bgmError || (media && media.error)) {
+      els.bgmStatusChip.textContent = state.bgmError ? 'gagal memuat' : 'file tidak ditemukan';
+      els.bgmStatusChip.className = 'chip warn';
+    } else {
+      els.bgmStatusChip.textContent = playing ? 'memutar' : 'dijeda';
+      els.bgmStatusChip.className = `chip${playing ? ' ok' : ''}`;
+    }
+    els.bgmDur.textContent = formatTime(st.duration);
+    const dur = st.duration || 0;
+    const pos = st.currentTime || 0;
+    if (!bgmSeekDragging) {
+      const pct = dur ? Math.round((pos / dur) * 1000) : 0;
+      els.bgmSeek.value = String(pct);
+      els.bgmSeek.style.setProperty('--pct', `${pct / 10}%`);
+      els.bgmCur.textContent = formatTime(pos);
+    }
+  }
+
+  // Determine overlay state:
+  // - 'playing' (green): BGM berjalan dengan lancar
+  // - 'error' (yellow): BGM tidak berjalan karena error lagu tidak terdeteksi / dsb
+  // - 'idle' (cleared): BGM tidak sedang berjalan
+  let overlayStatus = 'idle';
+  let overlayDesc = '';
+
+  if (state.bgmError || (hasTrack && media && media.error)) {
+    overlayStatus = 'error';
+    overlayDesc = state.bgmError || 'BGM Error: Lagu tidak terdeteksi atau rusak';
+  } else if (playing) {
+    overlayStatus = 'playing';
+    overlayDesc = 'BGM Berjalan';
   } else {
-    els.bgmStatusChip.textContent = playing ? 'memutar' : 'dijeda';
-    els.bgmStatusChip.className = `chip${playing ? ' ok' : ''}`;
+    overlayStatus = 'idle';
+    overlayDesc = '';
   }
-  els.bgmDur.textContent = formatTime(st.duration);
-  const dur = st.duration || 0;
-  const pos = st.currentTime || 0;
-  if (!bgmSeekDragging) {
-    const pct = dur ? Math.round((pos / dur) * 1000) : 0;
-    els.bgmSeek.value = String(pct);
-    els.bgmSeek.style.setProperty('--pct', `${pct / 10}%`);
-    els.bgmCur.textContent = formatTime(pos);
+
+  if (window.api && typeof window.api.setBgmOverlay === 'function') {
+    window.api.setBgmOverlay(overlayStatus, overlayDesc);
   }
+
+  if (els.bgmTabDot) {
+    if (overlayStatus === 'playing') {
+      els.bgmTabDot.hidden = false;
+      els.bgmTabDot.className = 'bgm-indicator-dot green';
+      els.bgmTabDot.title = 'BGM sedang berjalan lancar';
+    } else if (overlayStatus === 'error') {
+      els.bgmTabDot.hidden = false;
+      els.bgmTabDot.className = 'bgm-indicator-dot yellow';
+      els.bgmTabDot.title = overlayDesc;
+    } else {
+      els.bgmTabDot.hidden = true;
+    }
+  }
+}
+
+async function handleBgmToggle() {
+  const bgm = state.config && state.config.bgm;
+  if (!bgm || !bgm.file) {
+    state.bgmError = 'Lagu BGM belum dipilih / tidak terdeteksi';
+    toast('Belum ada lagu BGM.', 'warn');
+    updateBgmStatus();
+    return;
+  }
+  const result = await BgmPlayer.toggle();
+  if (!result.ok) {
+    if (result.reason === 'empty') {
+      state.bgmError = 'Lagu BGM tidak terdeteksi';
+      toast('Belum ada lagu BGM.', 'warn');
+    } else {
+      state.bgmError = result.message || 'Gagal memutar file BGM';
+      toast(state.bgmError, 'error');
+    }
+  } else {
+    state.bgmError = null;
+  }
+  updateBgmStatus();
 }
 
 function normalizeDeviceId(id) {
@@ -812,6 +870,7 @@ async function pickBgm() {
   const { bgm, errors } = await window.api.pickBgm();
   if (errors && errors.length) toast(errors[0], 'error');
   if (!bgm) return;
+  state.bgmError = null;
   state.config.bgm.file = bgm.file;
   state.config.bgm.sourceName = bgm.sourceName;
   await persist({ render: false });
@@ -821,6 +880,7 @@ async function pickBgm() {
   BgmPlayer.setLoop(state.config.bgm.loop);
   await applyBgmSink(false);
   toast('Lagu BGM dimuat.', 'ok');
+  updateBgmStatus();
 }
 
 async function removeBgm() {
@@ -829,10 +889,12 @@ async function removeBgm() {
     'Hapus'
   );
   if (!confirmed) return;
+  state.bgmError = null;
   BgmPlayer.unload();
   state.config.bgm = { file: '', sourceName: '', volume: 1, loop: false };
   await persist({ render: false });
   renderBgm();
+  updateBgmStatus();
 }
 
 function openSettings() {
@@ -961,15 +1023,9 @@ function bindEvents() {
     setBgmDevice(btn.dataset.device, (device && device.label) || btn.dataset.device);
   });
 
-  els.bgmPlay.addEventListener('click', async () => {
-    const result = await BgmPlayer.toggle();
-    if (!result.ok) {
-      if (result.reason === 'empty') toast('Belum ada lagu BGM.', 'warn');
-      else if (result.message) toast(result.message, 'error');
-    }
-    updateBgmStatus();
-  });
+  els.bgmPlay.addEventListener('click', handleBgmToggle);
   els.bgmStop.addEventListener('click', () => {
+    state.bgmError = null;
     BgmPlayer.stop();
     updateBgmStatus();
   });
@@ -1005,11 +1061,21 @@ function bindEvents() {
   const bgmMedia = BgmPlayer.element();
   if (bgmMedia) {
     bgmMedia.addEventListener('timeupdate', updateBgmStatus);
-    bgmMedia.addEventListener('loadedmetadata', updateBgmStatus);
-    bgmMedia.addEventListener('play', updateBgmStatus);
+    bgmMedia.addEventListener('loadedmetadata', () => {
+      state.bgmError = null;
+      updateBgmStatus();
+    });
+    bgmMedia.addEventListener('play', () => {
+      state.bgmError = null;
+      updateBgmStatus();
+    });
     bgmMedia.addEventListener('pause', updateBgmStatus);
-    bgmMedia.addEventListener('ended', updateBgmStatus);
+    bgmMedia.addEventListener('ended', () => {
+      state.bgmError = null;
+      updateBgmStatus();
+    });
     bgmMedia.addEventListener('error', () => {
+      state.bgmError = 'File BGM tidak terdeteksi atau rusak';
       if (state.config.bgm && state.config.bgm.file) toast('Gagal memuat file BGM.', 'error');
       updateBgmStatus();
     });
@@ -1152,7 +1218,7 @@ function cacheElements() {
     'bgmEmpty', 'bgmPlayer', 'bgmTitle', 'bgmMeta', 'bgmPlay', 'bgmStop', 'bgmLoop',
     'bgmStatusChip', 'bgmCur', 'bgmDur', 'bgmSeek', 'bgmVolume', 'bgmDevice', 'bgmWarn',
     'bgmHotkeyKbd', 'btnBgmPick', 'btnBgmPick2', 'btnBgmRemove', 'btnBgmGuide', 'btnBgmGuide2',
-    'btnBgmTest',
+    'btnBgmTest', 'bgmTabDot',
     'winMin', 'winMax', 'winClose',
     'btnSetBgmHotkey', 'btnClearBgmHotkey',
     'soundSearch', 'searchClear', 'searchBox'

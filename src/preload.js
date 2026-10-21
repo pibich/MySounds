@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('api', {
   saveConfig: (cfg) => ipcRenderer.invoke('config:save', cfg),
   importSounds: () => ipcRenderer.invoke('sounds:import'),
   pickBgm: () => ipcRenderer.invoke('bgm:pick'),
+  setBgmOverlay: (status, description) =>
+    ipcRenderer.invoke('bgm:set-overlay', { status, description }),
+  getBgmOverlay: () => ipcRenderer.invoke('bgm:get-overlay'),
   syncHotkeys: (entries) => ipcRenderer.invoke('hotkeys:sync', entries),
   suspendHotkeys: (value) => ipcRenderer.invoke('hotkeys:suspend', value),
   showInFolder: (relPath) => ipcRenderer.invoke('app:showInFolder', relPath),
